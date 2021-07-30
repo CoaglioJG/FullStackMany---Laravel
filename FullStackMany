@@ -1,0 +1,43 @@
+ public function fullStackMany($entities, $rollbackAllInParticularException = true)
+    {
+        $arrayCreated = [];
+        $arrayUpdated = [];
+        $arrayFail = [];
+        $arrayId = [];
+        try {
+            DB::beginTransaction();
+            foreach ($entities as $attributes) {
+                if (isset($attributes[$this->model->getKeyName()])) {
+                    $updated = $this->update($attributes[$this->model->getKeyName()], $attributes);
+                    array_push($arrayUpdated, $updated);
+                    array_push($arrayId, $updated[$this->model->getKeyName()]);
+                } else {
+                    $created = $this->create($attributes)->toArray();
+                    array_push($arrayCreated, $created);
+                    array_push($arrayId, $created[$this->model->getKeyName()]);
+                }
+            }
+
+            $excluir = $this->model->whereNotIn($this->model->getKeyName(), $arrayId)->get();
+            $excluir->map(function ($entity) {
+                return $entity->delete();
+            });
+
+            DB::commit();
+        } catch (Exception $e) {
+            return $e;
+            if ($rollbackAllInParticularException) {
+                DB::rollback();
+                $arrayCreated = [];
+                $arrayUpdated = [];
+                $arrayFail = $entities;
+            } else {
+                DB::commit();
+            }
+        }
+        return [
+            'created' => $arrayCreated ?? [],
+            'update' => $arrayUpdated ?? [],
+            'failed' => $arrayFail ?? [],
+        ];
+    }
